@@ -75,7 +75,7 @@ public class ESPHomeHandlerFactory extends BaseThingHandlerFactory {
     private final KeySequentialExecutor packetExecutor;
     private final ConnectionSelector connectionSelector;
 
-    private final Map<ThingUID, ThingHandler> thingHandlers = new ConcurrentHashMap<>();
+    private final Map<ThingUID, ESPHomeHandler> esphomeHandlers = new ConcurrentHashMap<>();
 
     @Activate
     public ESPHomeHandlerFactory(@Reference ESPChannelTypeProvider dynamicChannelTypeProvider,
@@ -110,13 +110,12 @@ public class ESPHomeHandlerFactory extends BaseThingHandlerFactory {
             ESPHomeHandler handler = new ESPHomeHandler(thing, connectionSelector, dynamicChannelTypeProvider,
                     stateDescriptionProvider, eventSubscriber, scheduler, packetExecutor, eventPublisher,
                     defaultEncryptionKey);
-            thingHandlers.put(thing.getUID(), handler);
+            esphomeHandlers.put(thing.getUID(), handler);
             return handler;
         } else if (BindingConstants.THING_TYPE_BLE_PROXY.equals(thingTypeUID)) {
             ESPHomeBluetoothProxyHandler handler = new ESPHomeBluetoothProxyHandler((Bridge) thing, thingRegistry,
                     scheduler);
             registerBluetoothAdapter(handler);
-            thingHandlers.put(thing.getUID(), handler);
             return handler;
         }
 
@@ -157,7 +156,7 @@ public class ESPHomeHandlerFactory extends BaseThingHandlerFactory {
 
     @Override
     protected synchronized void removeHandler(ThingHandler thingHandler) {
-        thingHandlers.remove(thingHandler.getThing().getUID());
+        esphomeHandlers.remove(thingHandler.getThing().getUID());
         if (thingHandler instanceof BluetoothAdapter bluetoothAdapter) {
             UID uid = bluetoothAdapter.getUID();
             ServiceRegistration<?> serviceReg = serviceRegs.remove(uid);
@@ -168,40 +167,8 @@ public class ESPHomeHandlerFactory extends BaseThingHandlerFactory {
         super.removeHandler(thingHandler);
     }
 
-    public void onDeviceReappeared(String ip, List<String> hostnames) {
-        for (ThingHandler handler : thingHandlers.values()) {
-            if (handler instanceof ESPHomeHandler esphomeHandler) {
-                String configHostname = esphomeHandler.getHostname();
-                if (configHostname != null) {
-                    // Check IP match
-                    if (configHostname.equals(ip)) {
-                        esphomeHandler.onDeviceReappeared();
-                        continue;
-                    }
-                    // Check hostname match
-                    for (String hostname : hostnames) {
-                        if (compareHostnames(configHostname, hostname)) {
-                            esphomeHandler.onDeviceReappeared();
-                            break; // Found a match, move to next handler
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private boolean compareHostnames(String h1, String h2) {
-        if (h1 == null || h2 == null) {
-            return false;
-        }
-        String s1 = StringUtils.stripEnd(h1, ".");
-        String s2 = StringUtils.stripEnd(h2, ".");
-        if (s1.equalsIgnoreCase(s2)) {
-            return true;
-        }
-        // Handle .local suffix
-        String s1Local = StringUtils.removeEndIgnoreCase(s1, ".local");
-        String s2Local = StringUtils.removeEndIgnoreCase(s2, ".local");
-        return s1Local.equalsIgnoreCase(s2Local);
+    public void onDeviceReappeared(List<String> deviceIds) {
+        esphomeHandlers.values().stream().filter(h -> deviceIds.contains(h.getDeviceId()))
+                .forEach(ESPHomeHandler::onDeviceReappeared);
     }
 }

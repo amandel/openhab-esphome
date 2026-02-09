@@ -734,7 +734,7 @@ public class ESPHomeHandler extends BaseThingHandler implements CommunicationLis
     }
 
     public void onDeviceReappeared() {
-        logger.debug("[{}] Device reappeared via mDNS, connection state {}", logPrefix, connectionState);
+        logger.info("[{}] Device reappeared via mDNS, connection state {}", logPrefix, connectionState);
         synchronized (connectionStateLock) {
             if (connectionState == ConnectionState.UNINITIALIZED) {
                 logger.info("[{}] Device reappeared via mDNS, triggering immediate reconnect", logPrefix);
@@ -744,8 +744,8 @@ public class ESPHomeHandler extends BaseThingHandler implements CommunicationLis
         }
     }
 
-    public @Nullable String getHostname() {
-        return config != null ? config.hostname : null;
+    public @Nullable String getDeviceId() {
+        return config != null ? config.deviceId : null;
     }
 
     private enum ConnectionState {

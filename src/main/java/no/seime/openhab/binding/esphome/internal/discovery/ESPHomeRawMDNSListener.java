@@ -41,6 +41,7 @@ public class ESPHomeRawMDNSListener {
     private final Logger logger = LoggerFactory.getLogger(ESPHomeRawMDNSListener.class);
     private static final int MDNS_PORT = 5353;
     private static final String MDNS_GROUP = "224.0.0.251";
+    private static final String ESPHOME_SERVICE_TYPE = "_esphomelib._tcp.local";
 
     private final ESPHomeHandlerFactory espHomeHandlerFactory;
     @Nullable
@@ -121,30 +122,28 @@ public class ESPHomeRawMDNSListener {
     }
 
     private void processPacket(DatagramPacket packet) {
-        List<String> hostnames = findHostnamesInPacket(packet);
-        if (!hostnames.isEmpty()) {
-            String ip = packet.getAddress().getHostAddress();
-            logger.debug("Detected ESPHome mDNS activity from {}. Hostnames: {}", ip, hostnames);
-            espHomeHandlerFactory.onDeviceReappeared(ip, hostnames);
+        List<String> deviceIds = findDeviceIdsInPacket(packet);
+        if (!deviceIds.isEmpty()) {
+            logger.debug("Detected ESPHome mDNS activity from {}.", deviceIds);
+            espHomeHandlerFactory.onDeviceReappeared(deviceIds);
         }
     }
 
-    public List<String> findHostnamesInPacket(DatagramPacket packet) {
-        List<String> hostnames = new ArrayList<>();
+    public List<String> findDeviceIdsInPacket(DatagramPacket packet) {
+        List<String> deviceIds = new ArrayList<>();
         byte[] data = packet.getData();
         int packetOffset = packet.getOffset();
         int packetLength = packet.getLength();
         int packetEnd = packetOffset + packetLength;
 
         if (packetLength < 12) {
-            return hostnames;
+            return deviceIds;
         }
 
         // Check QR bit in header. 1 for response, 0 for query. We only care about responses.
         boolean isResponse = (data[packetOffset + 2] & 0x80) != 0;
         if (!isResponse) {
-            logger.debug("Ignoring mDNS query packet from {}", packet.getAddress().getHostAddress());
-            return hostnames;
+            return deviceIds;
         }
 
         // Header
@@ -159,7 +158,7 @@ public class ESPHomeRawMDNSListener {
         for (int i = 0; i < qdCount; i++) {
             ParsedName pn = parseName(data, currentPos, packetOffset, packetEnd);
             if (pn == null) {
-                return hostnames;
+                return deviceIds;
             }
             currentPos = pn.nextOffset;
             currentPos += 4; // Skip QTYPE and QCLASS
@@ -173,12 +172,12 @@ public class ESPHomeRawMDNSListener {
 
             ParsedName pn = parseName(data, currentPos, packetOffset, packetEnd);
             if (pn == null) {
-                return hostnames;
+                return deviceIds;
             }
             currentPos = pn.nextOffset;
 
             if (currentPos + 10 > packetEnd) {
-                return hostnames;
+                return deviceIds;
             }
 
             int type = ((data[currentPos] & 0xFF) << 8) | (data[currentPos + 1] & 0xFF);
@@ -188,29 +187,23 @@ public class ESPHomeRawMDNSListener {
 
             String name = pn.name;
 
-            if (ttl == 0) {
-                logger.info("Ignoring mDNS goodbye packet for {}", name);
-                currentPos += 10 + dataLen;
-                continue;
-            }
-
-            if (name.endsWith("._esphomelib._tcp.local")) {
-                String hostname = name.substring(0, name.indexOf("._esphomelib._tcp.local"));
-                if (!hostname.isEmpty()) {
-                    hostnames.add(hostname);
-                }
-            }
-
-            if (type == 12 && name.equals("_esphomelib._tcp.local")) {
-                int rdataPos = currentPos + 10;
-                ParsedName target = parseName(data, rdataPos, packetOffset, packetEnd);
-                if (target != null) {
-                    String targetName = target.name;
-                    if (targetName.endsWith("._esphomelib._tcp.local")) {
-                        String hostname = targetName.substring(0, targetName.indexOf("._esphomelib._tcp.local"));
-                        if (!hostname.isEmpty()) {
-                            hostnames.add(hostname);
-                            logger.debug("Found PTR record pointing to: {} - added {}", targetName, hostname);
+            // Check for PTR record pointing to our service
+            if (type == 12 && ESPHOME_SERVICE_TYPE.equals(name)) {
+                if (ttl == 0) {
+                    logger.info("Ignoring mDNS goodbye packet for {}", name);
+                } else {
+                    int rdataPos = currentPos + 10;
+                    ParsedName target = parseName(data, rdataPos, packetOffset, packetEnd);
+                    if (target != null) {
+                        String targetName = target.name;
+                        if (targetName.endsWith("." + ESPHOME_SERVICE_TYPE)) {
+                            String deviceId = targetName.substring(0,
+                                    targetName.length() - ESPHOME_SERVICE_TYPE.length() - 1);
+                            if (!deviceId.isEmpty()) {
+                                deviceIds.add(deviceId);
+                                logger.debug("Found PTR record pointing to: {} - added deviceId {}", targetName,
+                                        deviceId);
+                            }
                         }
                     }
                 }
@@ -219,7 +212,7 @@ public class ESPHomeRawMDNSListener {
             currentPos += 10 + dataLen;
         }
 
-        return hostnames.stream().distinct().toList();
+        return deviceIds.stream().distinct().toList();
     }
 
     private static class ParsedName {
