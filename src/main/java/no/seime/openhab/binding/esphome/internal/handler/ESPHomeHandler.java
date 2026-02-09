@@ -734,7 +734,7 @@ public class ESPHomeHandler extends BaseThingHandler implements CommunicationLis
     }
 
     public void onDeviceReappeared() {
-        logger.info("[{}] Device reappeared via mDNS, connection state {}", logPrefix, connectionState);
+        logger.debug("[{}] Device reappeared via mDNS, connection state {}", logPrefix, connectionState);
         synchronized (connectionStateLock) {
             if (connectionState == ConnectionState.UNINITIALIZED) {
                 logger.info("[{}] Device reappeared via mDNS, triggering immediate reconnect", logPrefix);
