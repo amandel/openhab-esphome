@@ -38,7 +38,7 @@ import no.seime.openhab.binding.esphome.internal.handler.ESPHomeHandlerFactory;
 @NonNullByDefault
 public class ESPHomeRawMDNSListener {
 
-    private final Logger logger = LoggerFactory.getLogger(ESPHomeRawMDNSListener.class);
+    private static final Logger logger = LoggerFactory.getLogger(ESPHomeRawMDNSListener.class);
     private static final int MDNS_PORT = 5353;
     private static final String MDNS_GROUP = "224.0.0.251";
     private static final String ESPHOME_SERVICE_TYPE = "_esphomelib._tcp.local";
@@ -129,7 +129,7 @@ public class ESPHomeRawMDNSListener {
         }
     }
 
-    public List<String> findDeviceIdsInPacket(DatagramPacket packet) {
+    public static List<String> findDeviceIdsInPacket(DatagramPacket packet) {
         List<String> deviceIds = new ArrayList<>();
         byte[] data = packet.getData();
         int packetOffset = packet.getOffset();
@@ -225,7 +225,7 @@ public class ESPHomeRawMDNSListener {
         }
     }
 
-    private @Nullable ParsedName parseName(byte[] data, int offset, int packetStart, int packetEnd) {
+    private static @Nullable ParsedName parseName(byte[] data, int offset, int packetStart, int packetEnd) {
         StringBuilder sb = new StringBuilder();
         int current = offset;
         boolean jumped = false;
