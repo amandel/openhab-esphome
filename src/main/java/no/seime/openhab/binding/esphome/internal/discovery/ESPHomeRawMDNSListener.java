@@ -97,7 +97,7 @@ public class ESPHomeRawMDNSListener {
                 }
             }
 
-            byte[] buffer = new byte[4096];
+            byte[] buffer = new byte[9000];
             DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
 
             logger.info("Started raw mDNS listener on port {}", MDNS_PORT);
