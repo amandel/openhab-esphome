@@ -1,6 +1,6 @@
 # ESPHome Binding for openHAB
 
-### Docs updated 2026-01-20.
+### Docs updated 2026-05-10.
 
 <img src="logo.png" width="200"/>
 
